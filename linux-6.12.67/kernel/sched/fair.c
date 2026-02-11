@@ -76,6 +76,12 @@ unsigned int sysctl_sched_tunable_scaling = SCHED_TUNABLESCALING_LOG;
 unsigned int sysctl_sched_base_slice			= 700000ULL;
 static unsigned int normalized_sysctl_sched_base_slice	= 700000ULL;
 
+/*
+ * CW ENTAGLED CPUS
+*/
+static unsigned int sysctl_entangled_cpu1 = 0;
+static unsigned int sysctl_entangled_cpu2 = 0
+
 const_debug unsigned int sysctl_sched_migration_cost	= 500000UL;
 
 static int __init setup_sched_thermal_decay_shift(char *str)
@@ -151,6 +157,20 @@ static struct ctl_table sched_fair_sysctls[] = {
 		.extra1		= SYSCTL_ZERO,
 	},
 #endif /* CONFIG_NUMA_BALANCING */
+{
+	.procname = "entangled_cpus_1",
+	.data = &sysctl_entangled_cpu1,
+	.maxlen = sizeof(unsigned int),
+	.mode = 0644,
+	.proc_handler = proc_dointvec_minmax,
+},
+{
+	.procname = "entangled_cpus_2",
+	.data = &sysctl_entangled_cpu2,
+	.maxlen = sizeof(unsigned int),
+	.mode = 0644,
+	.proc_handler = proc_dointvec_minmax,
+},
 };
 
 static int __init sched_fair_sysctl_init(void)
