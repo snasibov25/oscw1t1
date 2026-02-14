@@ -8975,6 +8975,51 @@ again:
 static void __set_next_task_fair(struct rq *rq, struct task_struct *p, bool first);
 static void set_next_task_fair(struct rq *rq, struct task_struct *p, bool first);
 
+static bool is_entangled(struct rq *rq, struct task_struct *p)
+{
+	int cpu1 = READ_ONCE(sysctl_entangled_cpu1);
+	int cpu2 = READ_ONCE(sysctl_entangled_cpu2);
+
+	int this_cpu = cpu_of(rq);
+	int other_cpu;
+	struct rq *other_rq;
+	struct task_struct *other;
+
+	/* If entanglement not configured properly */
+	if (cpu1 < 0 || cpu2 < 0)
+		return false;
+
+	/* Only enforce on the entangled CPUs */
+	if (this_cpu != cpu1 && this_cpu != cpu2)
+		return false;
+
+	other_cpu = (this_cpu == cpu1) ? cpu2 : cpu1;
+
+	/* Safety: CPU might be offline */
+	if (!cpu_online(other_cpu))
+		return false;
+
+	other_rq = cpu_rq(other_cpu);
+	other = READ_ONCE(other_rq->curr);
+
+	/* If other CPU idle, allow */
+	if (!other)
+		return false;
+
+	/* Ignore idle tasks on the other CPU (pid 0) */
+    if (is_idle_task(other))
+	{
+		return false;
+	}
+        
+	/* If UID differs → block scheduling */
+	if (!uid_eq(task_uid(p), task_uid(other)))
+		return true;
+
+	return false;
+}
+
+
 struct task_struct *
 pick_next_task_fair(struct rq *rq, struct task_struct *prev, struct rq_flags *rf)
 {
@@ -8986,6 +9031,11 @@ again:
 	p = pick_task_fair(rq);
 	if (!p)
 		goto idle;
+	if (is_entangled(rq, p)){
+		//p = NULL;
+		goto idle;
+	}
+		
 	se = &p->se;
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
@@ -13224,6 +13274,10 @@ static void task_tick_fair(struct rq *rq, struct task_struct *curr, int queued)
 	check_update_overutilized_status(task_rq(curr));
 
 	task_tick_core(rq, curr);
+
+	if (is_entangled(rq, curr)) {
+        resched_curr(rq);
+    }
 }
 
 /*
